@@ -1,0 +1,7 @@
+.DS_Store
+.claude/settings.local.json
+course-materials/
+__pycache__/
+.env*
+!.env.example
+.env

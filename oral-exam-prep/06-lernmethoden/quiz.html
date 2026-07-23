@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ParaProg Quiz — Mündliche Prüfung ST26</title>
+<style>
+  :root { --bg:#f4f6f8; --card:#fff; --ink:#1c2733; --accent:#0b6e4f;
+          --wrong:#b3392f; --muted:#5b6b7a; --line:#d8dee5; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141a20; --card:#1e2831; --ink:#e8edf2; --accent:#4cc99a;
+            --wrong:#e07a70; --muted:#93a3b3; --line:#33414e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+         background:var(--bg); color:var(--ink); line-height:1.45; }
+  .wrap { max-width:720px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:1.3rem; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:.9rem; margin-bottom:16px; }
+  .tabs { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+  .tabs button { flex:1; min-width:130px; padding:10px; border:1px solid var(--line);
+    border-radius:10px; background:var(--card); color:var(--ink); cursor:pointer;
+    font-size:.95rem; }
+  .tabs button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px;
+          padding:20px; margin-bottom:14px; }
+  .topic { font-size:.75rem; text-transform:uppercase; letter-spacing:.06em;
+           color:var(--accent); margin-bottom:8px; }
+  .q { font-size:1.05rem; font-weight:600; margin-bottom:14px; white-space:pre-wrap; }
+  .code { font-family:ui-monospace,Menlo,monospace; font-size:.85rem;
+          background:rgba(127,127,127,.12); border-radius:8px; padding:12px;
+          white-space:pre; overflow-x:auto; margin-bottom:14px; }
+  .opts button { display:block; width:100%; text-align:left; margin-bottom:8px;
+    padding:10px 12px; border:1px solid var(--line); border-radius:10px;
+    background:transparent; color:var(--ink); cursor:pointer; font-size:.95rem; }
+  .opts button:hover { border-color:var(--accent); }
+  .opts button.right { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .opts button.wrong { background:var(--wrong); color:#fff; border-color:var(--wrong); }
+  .expl { display:none; margin-top:10px; padding:12px; border-left:3px solid var(--accent);
+          background:rgba(127,127,127,.08); border-radius:0 8px 8px 0; font-size:.92rem;
+          white-space:pre-wrap; }
+  .nav { display:flex; gap:8px; justify-content:space-between; align-items:center; }
+  .nav button { padding:10px 18px; border:none; border-radius:10px;
+    background:var(--accent); color:#fff; cursor:pointer; font-size:.95rem; }
+  .nav .ghost { background:transparent; color:var(--muted); border:1px solid var(--line); }
+  .score { color:var(--muted); font-size:.9rem; }
+  .flip { cursor:pointer; min-height:140px; display:flex; flex-direction:column;
+          justify-content:center; }
+  .a { display:none; margin-top:12px; padding-top:12px; border-top:1px dashed var(--line);
+       white-space:pre-wrap; }
+  .hint { color:var(--muted); font-size:.8rem; margin-top:10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ParaProg — Quiz zur mündlichen Prüfung</h1>
+  <div class="sub">OpenMP · MPI · SLURM · Performance — erst antworten, dann aufdecken.</div>
+  <div class="tabs">
+    <button id="tabMc" class="active" onclick="setMode('mc')">Multiple Choice</button>
+    <button id="tabFc" onclick="setMode('fc')">Karteikarten</button>
+  </div>
+  <div id="stage"></div>
+  <div class="nav">
+    <button class="ghost" onclick="prev()">Zurück</button>
+    <span class="score" id="score"></span>
+    <button onclick="next()">Weiter</button>
+  </div>
+</div>
+<script>
+const MC = [
+ {t:"OpenMP", q:"Ein 'parallel for' erhöht einen shared Zähler mit count++ ohne Schutz. Was passiert?",
+  o:["Compilerfehler","Data Race — Ergebnis zu klein und nichtdeterministisch","Deadlock","Immer korrekt, nur langsam"], c:1,
+  e:"count++ ist read-modify-write. Gleichzeitige Updates gehen verloren (lost update). Fix: reduction(+:count)."},
+ {t:"OpenMP", q:"#pragma omp parallel ohne { } — wofür gilt die Direktive?",
+  o:["Für den ganzen Rest der Funktion","Für die unmittelbar folgende Anweisung","Für die nächsten zwei Anweisungen","Gar nicht — Klammern sind Pflicht"], c:1,
+  e:"Nur die unmittelbar folgende Anweisung/der folgende Block wird parallel ausgeführt (Übung 3)."},
+ {t:"OpenMP", q:"Was liefert omp_get_num_threads() AUSSERHALB einer parallelen Region?",
+  o:["0","Die Anzahl der Kerne","1","Undefiniert"], c:2,
+  e:"Außerhalb einer parallelen Region läuft nur der Master-Thread → 1."},
+ {t:"OpenMP", q:"Pi-Schleife: double x vor der Region deklariert, x = (i+0.5)*step im Loop. Problem?",
+  o:["Keins — x ist automatisch private","x ist shared → Race, falsches Ergebnis","Nur Performance-Problem","x muss volatile sein"], c:1,
+  e:"Default-Scoping: außerhalb deklarierte Variablen sind shared. Fix: im Block deklarieren oder private(x)."},
+ {t:"OpenMP", q:"critical um eine einzelne Addition in JEDER Iteration eines heißen Loops. Bewertung?",
+  o:["Falsch — Race bleibt","Korrekt, aber serialisiert → oft langsamer als sequenziell","Korrekt und optimal","Deadlock-Gefahr"], c:1,
+  e:"Korrekt, aber jede Iteration nimmt den globalen Lock → Serialisierung + Contention. Fix: reduction."},
+ {t:"OpenMP", q:"Per-Thread-Zähler in int private_count[8] — Ergebnis korrekt, skaliert aber nicht. Ursache?",
+  o:["Data Race","False Sharing — alle Elemente in einer Cache-Line","Load Imbalance","Zu wenig Iterationen"], c:1,
+  e:"8 ints = 32 B teilen sich eine 64-B-Cache-Line → Invalidierungs-Ping-Pong. Fix: Padding oder reduction."},
+ {t:"OpenMP", q:"Dreiecksschleife (innere Schleife j=i..n) mit schedule(static). Problem?",
+  o:["Race auf j","Load Imbalance — erste Threads bekommen die teuren Iterationen","Deadlock an der Barriere","False Sharing"], c:1,
+  e:"Arbeit sinkt mit i; static-Blöcke sind ungleich teuer. Fix: schedule(static,16) zyklisch oder dynamic/guided."},
+ {t:"OpenMP", q:"a[i] = a[i] + a[i-1] mit parallel for. Warum falsch?",
+  o:["a müsste shared sein","Loop-carried dependency (true dependence) zwischen Iterationen","Integer-Overflow","reduction fehlt nur"], c:1,
+  e:"Iteration i liest das Ergebnis von i-1 — Iterationen sind nicht unabhängig. Präfixsumme braucht einen Scan-Algorithmus."},
+ {t:"OpenMP", q:"Task in Schleife referenziert die VOR der parallelen Region deklarierte Laufvariable i. Effekt?",
+  o:["i wird automatisch firstprivate — alles ok","i ist shared → Tasks sehen spätere/End-Werte (Race)","Compilerfehler","Tasks werden nie ausgeführt"], c:1,
+  e:"Shared bleibt shared im Task. Nur im Erzeugerkontext PRIVATE Variablen werden default-firstprivate. Fix: firstprivate(i)."},
+ {t:"OpenMP", q:"Fibonacci-Tasks: Wozu das taskwait vor return x + y?",
+  o:["Beendet das Thread-Team","Wartet auf die Kind-Tasks, die x und y schreiben","Verhindert False Sharing","Nur Stil"], c:1,
+  e:"Ohne taskwait liest der Eltern-Task x/y bevor die Kinder fertig sind → Race/Müll."},
+ {t:"OpenMP", q:"Zwei for-Schleifen in einer Region, erste mit nowait; zweite liest b[n-1-i]. Bewertung?",
+  o:["Korrekt — nowait ist immer sicher bei static","Race: Barriere fehlt, cross-thread gelesene Werte evtl. ungeschrieben","Deadlock","Nur Ausgabe unsortiert"], c:1,
+  e:"nowait entfernt die implizite Barriere. b[n-1-i] stammt von ANDEREN Threads → nowait hier falsch."},
+ {t:"OpenMP", q:"Rangfolge der Mechanismen für gegenseitigen Ausschluss laut Vorlesung?",
+  o:["locks → critical → atomic","atomic → critical → locks","critical → atomic → locks","egal"], c:1,
+  e:"atomic (einfachste Op, schnellste) zuerst, dann critical, dann Locks (flexibelste). Reduction schlägt alle, wenn anwendbar."},
+ {t:"MPI", q:"Beide Prozesse rufen zuerst MPI_Recv, dann MPI_Send. Was passiert?",
+  o:["Läuft bei kleinen Nachrichten","Garantierter Deadlock — beide warten im Recv","Nur langsam","MPI ordnet automatisch um"], c:1,
+  e:"Recv kann nie ohne passendes Send abschließen — zirkuläres Warten, unabhängig von Puffern. Fix: Umordnen/Sendrecv/Irecv."},
+ {t:"MPI", q:"Beide Prozesse: MPI_Send (groß) zuerst, dann Recv. Warum lief es im Test mit kleinen Daten?",
+  o:["Kleine Nachrichten: Eager-Pufferung versteckt den Deadlock","MPI repariert die Reihenfolge","Tags haben gematcht","Zufall"], c:0,
+  e:"Eager: Nachricht landet im Systempuffer, Send kehrt zurück. Groß → Rendezvous → Deadlock. MPI_Ssend deckt das deterministisch auf."},
+ {t:"MPI", q:"Wann kehrt Standard-MPI_Send zurück?",
+  o:["Wenn der Empfänger die Nachricht verarbeitet hat","Wenn der Sendepuffer wiederverwendbar ist (zugestellt ODER gepuffert)","Sofort, immer","Nach dem MPI_Wait des Empfängers"], c:1,
+  e:"Rückkehr garantiert NICHT die Zustellung — nur Puffer-Wiederverwendbarkeit."},
+ {t:"MPI", q:"MPI_Bcast steht nur im if (rank == 0)-Zweig; andere machen MPI_Recv. Effekt?",
+  o:["Funktioniert — Bcast sendet ja an alle","Hänger: Kollektive müssen von ALLEN gerufen werden, matchen nie mit P2P","Nur Rank 0 langsam","Compilerfehler"], c:1,
+  e:"Kollektivoperationen: alle Prozesse, gleiche Reihenfolge, keine Tags. Fix: Bcast außerhalb der Verzweigung."},
+ {t:"MPI", q:"Sendepuffer zwischen MPI_Isend und MPI_Wait überschreiben — Folge?",
+  o:["Ok, MPI hat schon kopiert","Undefinierte Daten beim Empfänger — Puffer ist bis zum Abschluss tabu","Deadlock","MPI_Wait schlägt fehl"], c:1,
+  e:"Die Übertragung läuft im Hintergrund und liest den Puffer ggf. später (Rendezvous). Erst Wait, dann wiederverwenden."},
+ {t:"MPI", q:"MPI_Gather: recvcount bezeichnet …",
+  o:["die Gesamtzahl der Elemente am Root","die Elementanzahl PRO Prozess","die Puffergröße in Bytes","die Anzahl der Prozesse"], c:1,
+  e:"Klassische Signatur-Falle: recvcount = Anteil EINES Prozesses; Root-Puffer muss size·count fassen."},
+ {t:"MPI", q:"Master verteilt Blöcke einzeln per MPI_Send in einer Schleife an p−1 Worker. Hauptproblem?",
+  o:["Deadlock","Serialisierte O(p)-Verteilung + zentraler Flaschenhals — Scatter/Reduce wären O(log p)","Falsches Ergebnis","Tags fehlen"], c:1,
+  e:"Zentralisierte Kommunikation über Rank 0 skaliert schlecht (EduMPI-Analyse in Übung 11). Kollektive nutzen Baum-Algorithmen."},
+ {t:"MPI", q:"chunk = n / size mit Ganzzahldivision, letzte Elemente ohne Behandlung. Wann fällt das auf?",
+  o:["Immer sofort","Nur wenn size n NICHT teilt — stilles falsches Ergebnis","Nie","Nur bei ungeraden Ranks"], c:1,
+  e:"Latenter Bug: Tests mit 2/4 Prozessen ok, 7 Ranks verlieren n%size Elemente. Fix: Restverteilung, Scatterv oder zyklisch."},
+ {t:"MPI", q:"Ring: alle machen Isend(rechts), dann Recv(links), dann Wait. Warum deadlock-frei?",
+  o:["Isend blockiert nie bei kleinen Daten","Initiierung ist LOKAL und kehrt sofort zurück — alle erreichen ihr Recv","Der Ring hat eine Lücke","MPI puffert unbegrenzt"], c:1,
+  e:"Nichtblockierende Initiierung entkoppelt Senden vom Fortschritt der Partner; alle Recvs finden ihr initiiertes Send."},
+ {t:"MPI", q:"Bester Einzelaufruf für paarweisen bidirektionalen Austausch (z. B. Halo)?",
+  o:["MPI_Bsend","MPI_Sendrecv","MPI_Rsend","MPI_Barrier + Send"], c:1,
+  e:"Sendrecv kombiniert beides deadlock-frei — Standardlösung für Ringe/Halos; Alternative: Isend/Irecv + Waitall."},
+ {t:"SLURM", q:"OpenMP-Job: welche Kombination ist richtig?",
+  o:["--ntasks=16, srun ./prog","--ntasks=1 --cpus-per-task=16, OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK, ./prog","--nodes=2 --ntasks=1","mpirun -np 16 ./prog"], c:1,
+  e:"OpenMP = EIN Prozess mit Threads auf EINEM Knoten. ntasks steuert Prozesse, cpus-per-task die Kerne."},
+ {t:"SLURM", q:"OpenMP-Programm versehentlich mit srun bei --ntasks=8 gestartet. Ergebnis?",
+  o:["8× schneller","8 unabhängige Kopien rechnen dasselbe + Oversubscription","MPI-Fehler","SLURM verweigert den Start"], c:1,
+  e:"srun startet pro Task eine Instanz; ohne MPI kooperieren sie nicht — 8-fache Ausgabe, keine Beschleunigung."},
+ {t:"SLURM", q:"--ntasks=16 reserviert, aber mpirun -np 4. Folge?",
+  o:["Absturz","12 Slots bleiben ungenutzt — Verschwendung, irreführende Messung","Automatisch 16 Ranks","Oversubscription"], c:1,
+  e:"Besser: srun (nimmt die Allokation) oder -np $SLURM_NTASKS — nie hart codieren."},
+ {t:"SLURM", q:"--cpus-per-task=1 aber OMP_NUM_THREADS=64. Was passiert?",
+  o:["SLURM lehnt den Job ab","64 Threads teilen sich 1 Kern — Oversubscription, langsamer als sequenziell","Es werden nur 1 Thread gestartet","Deadlock"], c:1,
+  e:"SLURM prüft die Threadanzahl nicht. Idiom: OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK."},
+ {t:"Performance", q:"T_seq=120 s, T_par(16)=14 s. Effizienz?",
+  o:["0.86","0.54","1.17","0.71"], c:1,
+  e:"S=120/14≈8.57; E=S/16≈0.54 — nur gut die Hälfte der Rechenkapazität wird genutzt."},
+ {t:"Performance", q:"f = 10 % sequenziell. Maximaler Speedup für p → ∞?",
+  o:["100","10","20","Unbegrenzt"], c:1,
+  e:"Amdahl: S ≤ 1/f = 10 — egal wie viele Prozessoren."},
+ {t:"Performance", q:"Weak Scaling ideal bedeutet …",
+  o:["Zeit halbiert sich mit jeder Verdopplung von p","Zeit bleibt konstant, obwohl das Problem mit p wächst","Effizienz > 1","Kommunikationszeit = 0"], c:1,
+  e:"Arbeit pro Prozess konstant → T(p) ≈ T(1); Kennzahl: Weak-Scaling-Effizienz T(1)/T(p). Gesetz: Gustafson."},
+ {t:"Performance", q:"S(2) = 2.03 gemessen (Effizienz > 1). Seriöseste Erklärung?",
+  o:["Messfehler, unmöglich","Cache-Effekte: aggregierter Cache fasst das Arbeitsset","Amdahl","Compiler-Magie"], c:1,
+  e:"Superlinearer Speedup durch mehr Cache pro Problem (oder veränderten Suchpfad) — beides Vorlesungsstoff."},
+ {t:"Performance", q:"Late Sender bedeutet …",
+  o:["Der Sender sendet doppelt","Empfänger wartet blockierend im Recv, weil das Send spät kommt","Nachricht geht verloren","Der Root ist überlastet"], c:1,
+  e:"Kommunikationsbedingtes Idle beim Empfänger; sichtbar in Trace-Analyse (Scalasca/EduMPI)."},
+ {t:"Performance", q:"Profiling vs. Tracing — Hauptunterschied?",
+  o:["Profiling ist genauer","Profiling aggregiert (keine Zeitordnung), Tracing zeichnet Ereignisse mit Zeitstempeln auf","Tracing hat weniger Overhead","Kein Unterschied"], c:1,
+  e:"Tracing erhält Ordnung/Kausalität (Ursachenanalyse), kostet aber Speicher und Laufzeit."}
+];
+const FC = [
+ ["Speedup-Formel?","S(p) = T_seq / T_par(p)\nT_seq = schnellstes SEQUENZIELLES Programm."],
+ ["Effizienz-Formel?","E(p) = S(p)/p = T_seq/(p·T_par(p)), 0 < E ≤ 1."],
+ ["Overhead-Formel?","O(p) = p·T_par(p) − T_seq."],
+ ["Amdahl?","S(p) = 1/(f + (1−f)/p); p→∞: S ≤ 1/f. Problemgröße fest."],
+ ["Gustafson?","S_scaled(p) = p − f·(p−1). Problem wächst mit p; f relativ schrumpfend."],
+ ["Data Race?","Unsynchronisierter gleichzeitiger Zugriff, mind. ein Schreiber → Ergebnis unspezifiziert."],
+ ["False Sharing?","Verschiedene Daten derselben 64-B-Cache-Line von mehreren Kernen beschrieben → Kohärenz-Ping-Pong. Fix: Padding/Privatisierung."],
+ ["count3s: 4 Varianten der Vorlesung?","1) ungeschützt: Race. 2) atomic: Bottleneck. 3) privates Array: False Sharing. 4) Padding: gut. Idiomatisch: reduction."],
+ ["OpenMP Default-Scoping?","Alles shared; private: Schleifenvariablen + in der Region deklarierte Variablen."],
+ ["Schedules + Einsatz?","static: gleichmäßig/Lokalität. static,c: zyklisch bei strukturierter Ungleichlast. dynamic: irregulär (Overhead). guided: adaptiv. runtime: OMP_SCHEDULE."],
+ ["Implizite Barrieren wo?","Ende von parallel, for, sections, single (nowait entfernt; nicht bei parallel). master: keine."],
+ ["Task-Datenumgebung?","Private Außenvariablen → firstprivate im Task (Wert beim Erzeugen); shared bleibt shared; Ergebnis-Rückgabe: shared(x) + taskwait."],
+ ["MPI_Send-Semantik?","Rückkehr = Sendepuffer frei: zugestellt ODER gepuffert — nicht unterscheidbar. Eager (klein) vs. Rendezvous (groß)."],
+ ["4 MPI-Sendemodi?","Standard, Buffered (Bsend+attach), Synchronous (Ssend/Rendezvous, Debug!), Ready (nie). I-Präfix = nichtblockierend."],
+ ["Nichtblockierende Regeln?","Isend/Irecv initiieren (lokal), Wait/Test schließen ab. Sendepuffer nicht ändern, Empfangspuffer nicht anfassen bis zum Abschluss."],
+ ["Kollektiv-Regeln?","Alle rufen auf, gleiche Reihenfolge, KEINE Tags, exakte Puffer; blocking nie mit nonblocking mischen; Baum O(log p)."],
+ ["Deadlock-Fixes MPI?","Umordnen nach Rank · MPI_Sendrecv · Isend/Irecv + Wait (bzw. Ibcast bei Kollektiv+P2P)."],
+ ["SLURM OpenMP-Muster?","--nodes=1 --ntasks=1 --cpus-per-task=N; OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK; direkt starten."],
+ ["SLURM MPI-Muster?","--ntasks=N (+ --nodes/--ntasks-per-node); srun ./prog oder mpirun -np $SLURM_NTASKS."],
+ ["Fulda-Cluster?","13 Knoten × 64 Kerne = 832; kein Hyperthreading; alles über SLURM; OpenMP max. 1 Knoten; Login-Knoten tabu."],
+ ["Late Sender / Late Receiver?","LS: Empfänger idlet im Recv. LR: Sender blockiert (Rendezvous), weil Recv fehlt. Trace-Analyse: Scalasca/EduMPI."],
+ ["Messregeln?","Wall-Clock (omp_get_wtime/MPI_Wtime), nur Kernel, ≥30 s, ≥3 Wiederholungen, Ergebnis ausgeben (Dead-Code-Elimination), auf dem Cluster."]
+];
+let mode="mc", i=0, answered={}, right=0;
+const stage=document.getElementById("stage"), score=document.getElementById("score");
+function setMode(m){ mode=m; i=0; answered={}; right=0;
+  document.getElementById("tabMc").classList.toggle("active",m==="mc");
+  document.getElementById("tabFc").classList.toggle("active",m==="fc"); render(); }
+function next(){ const n = mode==="mc"?MC.length:FC.length; i=(i+1)%n; render(); }
+function prev(){ const n = mode==="mc"?MC.length:FC.length; i=(i-1+n)%n; render(); }
+function pick(k){ if(answered[i]!==undefined) return; answered[i]=k;
+  if(k===MC[i].c) right++; render(); }
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+function render(){
+  if(mode==="mc"){
+    const q=MC[i], done=answered[i]!==undefined;
+    stage.innerHTML = `<div class="card">
+      <div class="topic">${q.t} · Frage ${i+1}/${MC.length}</div>
+      <div class="q">${esc(q.q)}</div>
+      <div class="opts">` + q.o.map((o,k)=>{
+        let cls=""; if(done){ if(k===q.c) cls="right"; else if(k===answered[i]) cls="wrong"; }
+        return `<button class="${cls}" onclick="pick(${k})">${esc(o)}</button>`;
+      }).join("") + `</div>
+      <div class="expl" style="display:${done?"block":"none"}">${esc(q.e)}</div></div>`;
+    score.textContent = `${right} richtig von ${Object.keys(answered).length} beantwortet`;
+  } else {
+    const c=FC[i];
+    stage.innerHTML = `<div class="card flip" onclick="this.querySelector('.a').style.display='block'">
+      <div class="topic">Karte ${i+1}/${FC.length}</div>
+      <div class="q">${esc(c[0])}</div>
+      <div class="a">${esc(c[1])}</div>
+      <div class="hint">Klicken/Tippen zum Aufdecken — erst LAUT antworten!</div></div>`;
+    score.textContent = "";
+  }
+}
+document.addEventListener("keydown", e=>{
+  if(e.key==="ArrowRight") next();
+  if(e.key==="ArrowLeft") prev();
+  if(e.key===" " && mode==="fc"){ e.preventDefault();
+    const a=stage.querySelector(".a"); if(a) a.style.display="block"; }
+});
+render();
+</script>
+</body>
+</html>

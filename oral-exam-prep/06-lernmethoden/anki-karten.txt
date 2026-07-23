@@ -1,0 +1,70 @@
+Formel: Speedup S(p)?	S(p) = T_seq / T_par(p) — T_seq = schnellstes sequenzielles Programm
+Formel: Effizienz E(p)?	E(p) = S(p)/p = T_seq/(p·T_par(p)), 0 < E ≤ 1
+Formel: Totaler paralleler Overhead O(p)?	O(p) = p·T_par(p) − T_seq
+Formel: Amdahls Gesetz?	S_max(p) = 1/(f + (1−f)/p); für p→∞: S ≤ 1/f (f = sequenzieller Anteil, Problemgröße fest)
+Formel: Gustafson (skalierter Speedup)?	S_scaled(p) = p − f·(p−1) — Problem wächst mit p, f bleibt konstant
+Formel: Parallelitätsgrad?	P = T_seq/T_∞ (T_∞ = längster Pfad im Abhängigkeitsgraphen) = max. Speedup bei beliebig vielen Prozessoren
+Strong vs. Weak Scaling?	Strong: Problemgröße fest, p steigt (Amdahl). Weak: Problemgröße wächst proportional zu p (Gustafson), Ziel T(p) ≈ T(1)
+Was ist ein Data Race?	Unsynchronisierter gleichzeitiger Zugriff mehrerer Threads auf dieselbe Speicherstelle, mind. ein Schreibzugriff — Ergebnis unspezifiziert
+Was ist eine Race Condition?	Das Ergebnis hängt von der Ausführungsreihenfolge der Operationen ab
+Was ist ein Deadlock?	Prozesse warten zirkulär auf Ergebnisse/Ressourcen, die nur innerhalb der Gruppe geliefert werden könnten — kein Fortschritt
+Was ist False Sharing?	Mehrere Prozessoren schreiben verschiedene Daten in derselben Cache-Line (64 B) → Invalidierungs-Ping-Pong, unnötiger Kohärenzverkehr. Fix: Padding oder private Kopien
+Was ist Load Imbalance?	Ungleiche Arbeitsverteilung — Threads/Prozesse warten an Barrieren auf den langsamsten. Fix: anderes Schedule / dynamische Verteilung
+Superlinearer Speedup — 2 Ursachen?	1) Cache-Effekte (aggregierter Cache wächst mit p), 2) veränderter Berechnungspfad bei Suchalgorithmen
+Datenabhängigkeiten — 3 Typen?	True (Write→Read), Anti (Read→Write), Output (Write→Write)
+Shared vs. Distributed Memory?	Shared: gemeinsamer Adressraum, implizite Kommunikation, explizite Synchronisation (OpenMP). Distributed: lokale Speicher, explizite Kommunikation per Message Passing (MPI)
+SMP vs. NUMA?	SMP: gleiche Speicherzugriffszeit für alle. NUMA: lokal schnell, entfernt langsam — Datenplatzierung relevant
+Flynns Klassifikation?	SISD (von Neumann), SIMD (GPU/Vektor), MISD (irrelevant), MIMD (heutige Parallelrechner: Multiprozessoren + Multicomputer)
+Prozess vs. Thread?	Prozess: eigener Adressraum. Thread: eigener Stack + Register, teilt Heap und globale Daten; kleinste schedulbare Einheit
+SPMD?	Single Program Multiple Data — ein Programm auf allen Prozessen, Differenzierung über Rank/ID; Rank 0 meist Master
+First-Touch-Policy (NUMA)?	Physische Seite wird beim ersten Zugriff platziert → Daten vom nutzenden Thread initialisieren lassen, nicht vom Master
+Fulda-Cluster Eckdaten?	13 Knoten × 64 Kerne = max. 832 MPI-Prozesse; kein Hyperthreading; alles über SLURM; OpenMP: genau 1 Knoten
+OpenMP: Default-Scoping?	Alles shared — außer Schleifenvariablen und in der Region deklarierte Variablen (private)
+OpenMP: private vs. firstprivate vs. lastprivate?	private: uninitialisierte Kopie; firstprivate: mit Außenwert initialisiert; lastprivate: Wert der letzten Iteration nach außen
+OpenMP: Threadanzahl-Priorität?	num_threads-Klausel > omp_set_num_threads() > OMP_NUM_THREADS > Default
+OpenMP: omp_get_num_threads() außerhalb paralleler Region?	1
+OpenMP: schedule(static) vs. dynamic vs. guided?	static: feste gleich große Blöcke (Lokalität, deterministisch); dynamic: Blöcke zur Laufzeit (beste Balance, Overhead); guided: erst groß, dann kleiner
+OpenMP: Wann static mit Chunk (zyklisch)?	Bei bekannter, strukturiert ungleicher Last (z. B. Dreiecksschleife) — gleicht aus ohne Laufzeit-Overhead
+OpenMP: reduction — Anforderungen an Operator?	Kommutativ und assoziativ; Gleitkomma → Rundungsunterschiede möglich
+OpenMP: Rangfolge Synchronisationsmechanismen?	atomic → critical → Locks (Effizienz/Einfachheit zuerst); reduction schlägt alle, wenn anwendbar
+OpenMP: unbenanntes critical — Falle?	Alle unbenannten criticals teilen EINEN globalen Lock — auch für verschiedene Daten
+OpenMP: Wo implizite Barrieren?	Ende von parallel, for, sections, single (nowait entfernt sie, außer bei parallel); master hat KEINE
+OpenMP: single vs. master?	single: ein beliebiger Thread + Barriere am Ende; master: nur Thread 0, keine Barriere, keine Klauseln
+OpenMP: Task-Datenumgebung Default?	Im Erzeugerkontext private Variablen → firstprivate im Task (Wert bei Erzeugung kopiert); shared bleibt shared
+OpenMP: taskwait?	Wartet auf die direkten Kind-Tasks des aktuellen Tasks
+OpenMP: Wozu Cutoff bei rekursiven Tasks?	Verhindert exponentiell viele Kleinst-Tasks — Task-Overhead würde Nutzen übersteigen; unterhalb der Schwelle sequenziell
+OpenMP: Wann Tasks statt parallel for?	Irreguläre Strukturen: Listen (while), Rekursion, Divide & Conquer; sonst parallel for (weniger Overhead)
+OpenMP: Cancellation-Modell?	Kooperativ: cancel signalisiert, Threads prüfen an cancellation points; OMP_CANCELLATION=true nötig
+OpenMP: nowait — wann sicher?	Wenn die Folgeschleife nur Daten desselben Threads liest: identische Schleifenköpfe + schedule(static) — sonst Race
+MPI: Was ist MPI?	Ein Standard (nicht Implementierung) für Message Passing; Implementierungen: Open MPI, MPICH; SPMD, Ranks, privater Speicher pro Prozess
+MPI: Grundgerüst?	MPI_Init → MPI_Comm_rank/MPI_Comm_size (MPI_COMM_WORLD) → Arbeit → MPI_Finalize; kompilieren mit mpicc, starten mit mpirun/srun
+MPI: Matching-Regeln Send/Recv?	Gleicher Kommunikator, passende Quelle/Ziel, passender Tag, Empfangspuffer ≥ Sendegröße; ANY_SOURCE/ANY_TAG beim Recv erlaubt
+MPI: Semantik MPI_Send (Standard Mode)?	Kehrt zurück, wenn Sendepuffer wiederverwendbar: zugestellt ODER systemgepuffert — nicht unterscheidbar!
+MPI: Die 4 Kommunikationsmodi?	Standard (Send), Buffered (Bsend + Buffer_attach), Synchronous (Ssend, Rendezvous), Ready (Rsend — nie verwenden); I-Präfix = nichtblockierend
+MPI: Eager vs. Rendezvous?	Klein: eager (Systempuffer, Send kehrt früh zurück — versteckt Deadlocks). Groß: rendezvous (Send wartet auf Recv — Deadlock schlägt zu)
+MPI: Wozu MPI_Ssend beim Debuggen?	Erzwingt Rendezvous → latente Send-Send-Deadlocks werden deterministisch sichtbar; Test auf „safe program"
+MPI: Safe Program?	Korrektheit hängt nicht von Existenz/Größe der MPI-Systempuffer ab
+MPI: Nichtblockierend — 2 Phasen?	Initiierung (Isend/Irecv, lokal, Request-Handle) + Abschluss (Wait/Test/Waitall). Sendepuffer bis Abschluss nicht ändern; Empfangspuffer weder lesen noch schreiben
+MPI: Deadlock-Muster Nr. 1?	Beide Prozesse Recv zuerst (garantiert) oder beide Send zuerst (latent, bei groß/Ssend garantiert). Fixes: Umordnen, Sendrecv, Isend+Wait
+MPI: MPI_Sendrecv?	Senden + Empfangen in einem Aufruf, intern deadlock-frei — Standard für paarweisen Austausch, Ringe, Halo Exchange
+MPI: Kollektive — Grundregeln?	Alle Prozesse des Kommunikators rufen auf, gleiche Reihenfolge, KEINE Tags, exakte Puffergrößen; nie blockierend mit nichtblockierend mischen
+MPI: Bcast vs. Scatter?	Bcast: Root schickt IDENTISCHE Daten an alle. Scatter: Root verteilt STÜCKE (je n/p, teilbar!); ungleich → Scatterv (counts+displs)
+MPI: Gather — recvcount-Falle?	recvcount = Elemente PRO PROZESS, nicht Gesamtgröße; Sammeln in Rank-Reihenfolge; Puffergröße = Programmiererpflicht
+MPI: Reduce vs. Allreduce?	Reduce: elementweise Kombination (SUM/MAX/MAXLOC…) zum Root; Allreduce: Ergebnis an alle; Scan: Präfix-Reduktion
+MPI: Warum Kollektive statt P2P-Schleife?	Baumbasiert O(log p) statt O(p), kürzer, performance-portabel (Bibliothek wählt Algorithmus)
+MPI: Kollektiv+P2P-Deadlock der Vorlesung?	Rank 0: Bcast→Send; Rank 1: Recv→Bcast → beide blockieren. Fix: gleiche Reihenfolge oder Ibcast+Wait
+SLURM: OpenMP-Job-Muster?	--nodes=1 --ntasks=1 --cpus-per-task=N; export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK; Programm direkt starten
+SLURM: MPI-Job-Muster?	--ntasks=N (ggf. --nodes/--ntasks-per-node); srun ./prog (oder mpirun -np $SLURM_NTASKS)
+SLURM: ntasks vs. cpus-per-task?	ntasks = Prozesse (MPI-Ranks); cpus-per-task = Kerne pro Prozess (OpenMP-Threads)
+SLURM: OpenMP-Programm mit srun --ntasks=8 gestartet?	8 unabhängige Kopien (keine Kooperation!), je N Threads → Oversubscription + doppelte Ausgabe
+SLURM: MPI-Programm ohne srun/mpirun?	Läuft als einzelner Rank (size = 1)
+SLURM: Oversubscription?	Mehr Threads/Ranks als reservierte Kerne → Zeitscheiben statt Parallelität, Messwerte unbrauchbar
+Messmethodik: Regeln?	Wall-Clock (omp_get_wtime/MPI_Wtime), nur Kernel, Laufzeit ≥ ~30 s, ≥ 3 Wiederholungen, Ergebnis ausgeben (Dead-Code!), auf dem Cluster messen
+time-Kommando: real/user/sys?	real = Wall-Clock; user = CPU-Zeit User-Mode; sys = CPU-Zeit Kernel-Mode; parallel zählt real
+Profiling vs. Tracing?	Profiling: aggregierte Statistik, wenig Overhead, keine Zeitordnung. Tracing: Ereignisse mit Zeitstempel, Kausalität sichtbar, hoher Overhead
+Late Sender / Late Receiver?	Late Sender: Empfänger wartet im Recv (Send kommt spät). Late Receiver: Sender blockiert (synchron/Rendezvous), weil Recv fehlt
+Werkzeuge: Score-P/Cube/Vampir/Scalasca/TAU?	Score-P: Instrumentierung (Profile+Traces); Cube: Profil-GUI; Vampir: Trace-Timeline; Scalasca: automatische Muster (Late Sender); TAU: All-in-One; MUST: MPI-Korrektheit
+count3s: die 4 Vorlesungs-Varianten?	1) unsynchronisiert → Race; 2) atomic → Bottleneck; 3) privates Zählerarray → False Sharing; 4) Padding → gut. (Beste Lösung: reduction)
+Cache-Line-Größe und Bedeutung?	Typisch 64 Byte — Einheit des Cache-Transfers und der Kohärenz; Grund für räumliche Lokalität und False Sharing
+Matrixmultiplikation: Warum i-k-j schneller als i-j-k?	Innerste Schleife läuft stride-1 durch c und b (row-major) statt spaltenweise durch b → Cache-Lines voll genutzt
+TOP500?	Liste der 500 schnellsten Supercomputer, LINPACK, FLOPS, 2×/Jahr; Spitze: El Capitan (~1.7 ExaFLOPS); Green500 = Energieeffizienz
